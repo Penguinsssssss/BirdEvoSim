@@ -1,12 +1,13 @@
 # bird evo sim
 
 import pygame
+import random
 
 # --- CONSTANTS ---
 
 # board init
-BOARDX = 128 # -128 -> 128
-BOARDY = 128
+BOARDX = 32 # -128 -> 128
+BOARDY = 32
 
 # audio params
 AUDIO_CREATURE_RANGE = 8
@@ -14,11 +15,12 @@ AUDIO_PREDATOR_RANGE = 15
 
 # temp/placeholder
 squaresize = 40
+gridlinewidth = 1
 
 # --- CONSTANTS ---
 
 # pygame init
-scX, scY = 1280 * 0.75, 720 * 0.75
+scX, scY = 1280, 720
 screen = pygame.display.set_mode((scX, scY))
 pygame.display.set_caption("Bird Evo")
 clock = pygame.time.Clock()
@@ -27,49 +29,85 @@ class Creature:
 
     def __init__(self):
 
-        self.pos = (0, 0)
+        self.pos = (random.randint(-10, 10), random.randint(-10, 10))
+        self.color = [random.randint(0, 255)] * 3
         self.brain = []
+
+class Boardm:
+    
+    def __init__(self):
+        self.creatures = [Creature()]
 
 class Visualm:
 
-    def __init__(self, screen, globals):
+    def __init__(self, screen, board):
+        
+        self.board = board
+        
         self.screen = screen
-        self.globals = globals
+        self.zoom = 1
+        self.cpos = [0, 0]
 
     def tick(self):
         self.screen.fill("#332244")
         self.drawGrid()
-        self.drawCreatures()
+        for c in self.board.creatures:
+            self.colorSquare([c.pos[0], c.pos[1]], c.color)
+        self.colorSquare([0, 0], "#0000ff")
         pygame.display.flip()
 
     def drawGrid(self):
-        cellsize = squaresize * self.globals.zoom
-
         for x in range(BOARDX * 2 + 1):
-            lx = scX / 2 + (x - BOARDX) * cellsize - self.globals.cpos[0]
-            pygame.draw.line(self.screen, "#9988aa", (lx, 0), (lx, scY), 1)
+            wx = (x - BOARDX) * squaresize
+            sx = (scX / 2 + (wx - self.cpos[0]) * self.zoom)
+            pygame.draw.line(self.screen, "#99ffaa", (sx, 0), (sx, scY), 1)
 
         for y in range(BOARDY * 2 + 1):
-            ly = scY / 2 + (y - BOARDY) * cellsize - self.globals.cpos[1]
-            pygame.draw.line(self.screen, "#9988aa", (0, ly), (scX, ly), 1)
+            wy = (y - BOARDY) * squaresize
+            sy = (scY / 2 + (wy - self.cpos[1]) * self.zoom)
 
-    def drawCreatures(self):
-        cellsize = squaresize * self.globals.zoom
+            pygame.draw.line(self.screen, "#99ffaa", (0, sy), (scX, sy), 1)
 
-        for creature in self.globals.creatures:
-            cx = scX / 2 + (creature.pos[0] - BOARDX) * cellsize - self.globals.cpos[0]
-            cy = scY / 2 + (creature.pos[1] - BOARDY) * cellsize - self.globals.cpos[1]
-            pygame.draw.circle(self.screen, "#663333", (cx, cy), 10)
+    def colorSquare(self, pos, color):
+        cellsize = squaresize * self.zoom
 
-class Globals: pass
+        wx = pos[0] * squaresize
+        wy = pos[1] * squaresize
+
+        cx = scX / 2 + (wx - self.cpos[0]) * self.zoom
+        cy = scY / 2 + (wy - self.cpos[1]) * self.zoom
+        
+        rect = (
+                cx + gridlinewidth,
+                cy + gridlinewidth,
+                cellsize - gridlinewidth,
+                cellsize - gridlinewidth
+            )
+
+        pygame.draw.rect(self.screen, color, rect)
+    
+    def deltazoom(self, zm):
+        mx, my = pygame.mouse.get_pos()
+
+        oz = self.zoom
+        cx, cy = self.cpos
+
+        wx = cx + (mx - scX / 2) / oz
+        wy = cy + (my - scY / 2) / oz
+
+        nz = oz * zm
+        nz = max(0.1, min(nz, 10))
+
+        cx = wx - (mx - scX / 2) / nz
+        cy = wy - (my - scY / 2) / nz
+
+        self.zoom = nz
+        self.cpos = [cx, cy]
 
 def main():
 
-    globals = Globals()
-    globals.zoom = 1
-    globals.cpos = [0, 0]
-    globals.creatures = [Creature()]
-    visualm = Visualm(screen, globals)
+    boardm = Boardm()
+    visualm = Visualm(screen, boardm)
 
     running = True
     mx, my, pmx, pmy = 0, 0, 0, 0
@@ -83,18 +121,20 @@ def main():
         mx, my = pygame.mouse.get_pos()
         lc, mc, rc = pygame.mouse.get_pressed()
         if lc:
-            globals.cpos[0] += pmx - mx
-            globals.cpos[1] += pmy - my
+            visualm.cpos[0] += (pmx - mx) / visualm.zoom
+            visualm.cpos[1] += (pmy - my) / visualm.zoom
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
             if event.type == pygame.MOUSEWHEEL:
-                globals.zoom += event.y * 0.01
+                if event.y > 0:
+                    visualm.deltazoom(1.05)
+                elif event.y < 0:
+                    visualm.deltazoom(1 / 1.05)
 
         pmx, pmy = mx, my
-    
 
 if __name__ == "__main__":
     main()

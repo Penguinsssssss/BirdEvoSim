@@ -6,12 +6,12 @@ import random
 # --- CONSTANTS ---
 
 # board init
-BOARDX = 64 # -128 -> 128
-BOARDY = 64
+BOARDX = 128 # -128 -> 128
+BOARDY = 128
 
 # audio params
-AUDIO_CREATURE_RANGE = 15
-AUDIO_PREDATOR_RANGE = 22
+AUDIO_CREATURE_RANGE = 18 #36
+AUDIO_PREDATOR_RANGE = 5
 
 # temp/placeholder
 squaresize = 40
@@ -79,11 +79,11 @@ class Visualm:
             self.colorSquare([c.pos[0], c.pos[1]], c.color, mode="circle")
 
         sounds = {}
-        sounds = self.emitSound(sounds, (10, 15), "#1eaf50", AUDIO_CREATURE_RANGE)
-        sounds = self.emitSound(sounds, (13, 13), "#f00ba6", AUDIO_CREATURE_RANGE)
-        sounds = self.emitSound(sounds, (7, 9), "#ff0000", AUDIO_PREDATOR_RANGE)
-        sounds = self.emitSound(sounds, (5, 18), "#ffd700", AUDIO_CREATURE_RANGE)
-        sounds = self.emitSound(sounds, (22, 19), "#00d7ff", AUDIO_CREATURE_RANGE)
+        sounds = self.emitSound(sounds, (10, 15), "#801de4", AUDIO_CREATURE_RANGE)
+        #sounds = self.emitSound(sounds, (13, 13), "#f00ba6", AUDIO_CREATURE_RANGE)
+        sounds = self.emitSound(sounds, (-10, -9), "#ff1eaf", AUDIO_PREDATOR_RANGE)
+        #sounds = self.emitSound(sounds, (5, 18), "#ffd700", AUDIO_CREATURE_RANGE)
+        sounds = self.emitSound(sounds, (35, 28), "#00d7ff", AUDIO_CREATURE_RANGE)
 
         for pos, colors in sounds.items():
 
@@ -99,7 +99,7 @@ class Visualm:
 
             self.colorSquare(pos, color)
 
-        self.colorSquare([0, 0], "#0000ff")
+        #self.colorSquare([0, 0], "#0000ff")
         
         self.drawGrid()
         pygame.display.flip()

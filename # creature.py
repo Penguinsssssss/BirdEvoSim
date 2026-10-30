@@ -2,6 +2,10 @@
 
 import random
 import numpy as np
+import copy
+
+EPISODES = 100
+POPULATION = 1000
 
 def htr(hex):
     hex = hex.lstrip('#')
@@ -14,11 +18,10 @@ def sig(input): return 1 / (1 + np.exp(-input)) # sigmoid function
 
 class Creature:
 
-    def __init__(self, board, pos):
+    def __init__(self, board, pos, brain=None):
         self.board = board
 
-        self.pos = pos.copy()
-        self.startingpos = pos.copy()
+        self.pos = pos
 
         self.visionRadius = 5
 
@@ -26,15 +29,44 @@ class Creature:
         self.g = 80
         self.b = 175
 
-        self.brainlayers = 1
-        self.layersize = 16
+        if brain is None:
 
-        self.brain = [] # [(weights), (biases)]
-        self.createBrain(3, 2)
+            self.brainlayers = 1
+            self.layersize = 16
 
-    def end(self):
-        if 0 not in self.pos and 65 not in self.pos and self.startingpos != self.pos:
-            print(f"Starting pos {self.startingpos} | Ending pos {self.pos}")
+            self.brain = [] # [(weights), (biases)]
+            self.createBrain(4, 4)
+
+        else:
+
+            self.brainlayers = brain[0]
+            self.layersize = brain[1]
+            self.brain = brain[2]
+
+    def returnRandomPos(self):
+        #return [random.randint(28, 36), random.randint(28, 36)]
+        return [random.randint(0, self.board.sx - 1), random.randint(0, self.board.sy - 1)]
+
+    def scatter(self):
+        self.pos = self.returnRandomPos()
+
+    def clone(self, mutationRate=0.1, mutationStrength=0.1):
+        brain = copy.deepcopy(self.brain)
+        for weights, biases in brain:
+            for neuron in range(len(weights)):
+                for w in range(len(weights[neuron])):
+                    if random.random() < mutationRate:
+                        weights[neuron][w] += random.gauss(0, mutationStrength)
+
+                if random.random() < mutationRate:
+                    biases[neuron] += random.gauss(0, mutationStrength)
+        
+        c = Creature(
+            self.board,
+            self.returnRandomPos(),
+            [self.brainlayers, self.layersize, brain]
+        )
+        return c
 
     def createBrain(self, inputSize, outputSize):
         self.brain = []
@@ -60,22 +92,19 @@ class Creature:
         x, y = self.returnPos()
 
         inputs = [
-            x / self.board.sx,
-            y / self.board.sy,
-            self.returnTime() / self.board.daylength
+            x / self.board.sx - 1,
+            y / self.board.sy - 1,
+            self.returnTime() / self.board.daylength,
+            self.board.moon
         ]
 
         outputs = self.forward(inputs)
 
-        dx = round(outputs[0] * 2) - 1
-        dy = round(outputs[1] * 2) - 1
-
-        #dx = max(min(dx, -1), 1)
-        #dy = max(min(dy, -1), 1)
-
-        self.move((dx, dy))
-
-        #print("Movement outputs:", dx, dy, "Location:", self.pos, "Time", self.board.time)
+        u, d, l, r = outputs[0], outputs[1], outputs[2], outputs[3]
+        if u > 0.5: self.move([0, 1])
+        if d > 0.5: self.move([0, -1])
+        if l > 0.5: self.move([-1, 0])
+        if r > 0.5: self.move([1, 0])
 
     def forwardLayer(self, inputs, weights, biases):
         outputs = []
@@ -98,31 +127,34 @@ class Creature:
         return inputs
 
     def returnVision(self):
-        visionSquares = []
-        for i in range(self.visionRadius):
-            for j in range(i):
-                x, y = i - j, -j
-                visionSquares.append((self.pos[0] + x, self.pos[1] + y))
-            for j in range(i):
-                x, y = i - j, j
-                visionSquares.append((self.pos[0] + x, self.pos[1] + y))
-            for j in range(i):
-                x, y = -i + j, -j
-                visionSquares.append((self.pos[0] + x, self.pos[1] + y))
-            for j in range(i):
-                x, y = -i + j, j
-                visionSquares.append((self.pos[0] + x, self.pos[1] + y))
         vision = {}
-        for i in visionSquares:
-            vision[i] = (self.board.board[i[0]][i[1]])
+
+        for dx in range(-self.visionRadius, self.visionRadius + 1):
+            for dy in range(-self.visionRadius, self.visionRadius + 1):
+
+                if abs(dx) + abs(dy) > self.visionRadius:
+                    continue
+
+                x = self.pos[0] + dx
+                y = self.pos[1] + dy
+
+                if 0 <= x < self.board.sx and 0 <= y < self.board.sy:
+                    vision[(x, y)] = self.board.board[x][y]
+
         return vision
 
     def returnSound(self):
         sounds = []
-        sounds.append(self.board.sounds[self.pos[0] + 1][self.pos[1]])
-        sounds.append(self.board.sounds[self.pos[0] - 1][self.pos[1]])
-        sounds.append(self.board.sounds[self.pos[0]][self.pos[1] + 1])
-        sounds.append(self.board.sounds[self.pos[0]][self.pos[1] - 1])
+
+        for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+            x = self.pos[0] + dx
+            y = self.pos[1] + dy
+
+            if 0 <= x < self.board.sx and 0 <= y < self.board.sy:
+                sounds.append(self.board.sounds[x][y])
+            else:
+                sounds.append((0, 0, 0))
+
         return sounds
 
     def returnTime(self):
@@ -137,8 +169,8 @@ class Creature:
     def move(self, dir): # dir = [0, 1]
         self.pos[0] += dir[0]
         self.pos[1] += dir[1]
-        self.pos[0] = max(0, min(self.pos[0], self.board.sx))
-        self.pos[1] = max(0, min(self.pos[1], self.board.sy))
+        self.pos[0] = max(0, min(self.pos[0], self.board.sx - 1))
+        self.pos[1] = max(0, min(self.pos[1], self.board.sy - 1))
 
     def setR(self, val): self.r = val
     def setG(self, val): self.g = val
@@ -148,8 +180,14 @@ class Creature:
 class Board:
 
     def __init__(self):
-        self.sx = 65
-        self.sy = 65
+        self.sx = 64
+        self.sy = 64
+        self.daylength = 100
+        self.moonphase = False
+
+        # self.reset()
+
+    def reset(self):
         self.board = []
         for i in range(self.sx):
             row = []
@@ -166,20 +204,51 @@ class Board:
                 row.append((r, g, b))
             self.sounds.append(row)
         self.time = 0
-        self.daylength = 100
+        self.moonphase = not self.moonphase
+        self.moon = 1 if self.moonphase else 0
 
     def addSound(self, pos, rgb):
         pass
 
+    def victoryCondition(self, creatures):
+        survived = []
+        for i in creatures:
+            if self.moon == 0:
+                if i.pos[0] < 8: survived.append(i)
+            else:
+                if i.pos[0] > 56: survived.append(i)
+        return survived
+
 def main():
+
+    # create initial generation
     b = Board()
     creatures = []
-    for _ in range(1000): creatures.append(Creature(b, [random.randint(0, b.sx - 1), random.randint(0, b.sy - 1)]))
-    for t in range(b.daylength):
-        for i in creatures: i.act()
-        b.time += 1
-        print(t)
-    for i in creatures: i.end()
+    for _ in range(POPULATION): creatures.append(Creature(b, [random.randint(0, b.sx - 1), random.randint(0, b.sy - 1)]))
+
+    # over number of episodes
+    for e in range(EPISODES):
+
+        # reset day
+        b.reset()
+        for c in creatures: c.scatter()
+
+        # run day
+        for t in range(b.daylength):
+
+            # creatures act
+            for c in creatures: c.act()
+            b.time += 1
+
+        # collect winning creatures
+        survived = b.victoryCondition(creatures)
+        print(len(survived), b.moon)
+
+        # repopulate
+        creatures = []
+        for c in survived: creatures.append(c.clone())
+        while len(creatures) < POPULATION:
+            creatures.append(random.choice(survived).clone())
 
 if __name__ == "__main__":
     main()
